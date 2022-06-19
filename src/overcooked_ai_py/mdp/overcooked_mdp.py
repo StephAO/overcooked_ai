@@ -1,5 +1,7 @@
 import itertools, copy, warnings
 import numpy as np
+import sys
+sys.path.append("/home/biswas/overcooked_ai/src/")
 from functools import reduce
 from collections import defaultdict, Counter
 from overcooked_ai_py.utils import pos_distance, read_layout_dict, classproperty

@@ -1,3 +1,5 @@
+import sys
+sys.path.append("/home/biswas/overcooked_ai/src/")
 from overcooked_ai_py.mdp.overcooked_mdp import OvercookedState, OvercookedGridworld, Direction, Action
 from overcooked_ai_py.planning.planners import MediumLevelActionManager, NO_COUNTERS_PARAMS
 
@@ -76,6 +78,9 @@ def encode_state(mdp: OvercookedGridworld, state: OvercookedState, horizon: int,
             agent_obs[i][3] = Direction.DIRECTION_TO_INDEX[player.orientation] # Agent direction
             if player.held_object is not None:
                 agent_obs[i][4] = MOVABLE_ITEMS_TO_IDX[player.held_object.name]  # Agent object held
+            #     agent_obs[i][7] = 'carrying_' + str(player.held_object.name)
+            # else:
+            #     agent_obs[i][7] = 'carrying_nothing'
             agent_obs[i][5] = horizon - state.timestep  # Time remaining
             if inc_urgency and horizon - state.timestep < 40:
                 agent_obs[i][6] = 1
