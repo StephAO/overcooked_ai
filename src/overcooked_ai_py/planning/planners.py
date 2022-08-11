@@ -152,6 +152,7 @@ class MotionPlanner(object):
 
     def is_valid_motion_start_goal_pair(self, start_pos_and_or, goal_pos_and_or):
         if not self.is_valid_motion_goal(goal_pos_and_or):
+            print("not valid goal")
             return False
         # the valid motion start goal needs to be in the same connected component
         if not self.positions_are_connected(start_pos_and_or, goal_pos_and_or):
@@ -264,14 +265,17 @@ class MotionPlanner(object):
         start_position, start_orientation = start_motion_state
         return [(action, self.mdp._move_if_direction(start_position, start_orientation, action)) for action in Action.ALL_ACTIONS]
 
-    def min_cost_between_features(self, pos_list1, pos_list2, manhattan_if_fail=False):
+    def min_cost_between_features(self, pos_list1, pos_list2, with_argmin = False,manhattan_if_fail=False):
         """
-        Determines the minimum number of timesteps necessary for a player to go from any 
+        Determines the minimum number of timesteps necessary for a agent to go from any
         terrain feature in list1 to any feature in list2 and perform an interact action
         """
         min_dist = np.Inf
         min_manhattan = np.Inf
-        for pos1, pos2 in itertools.product(pos_list1, pos_list2):
+        best_feature = None
+        if all(i is None for i in pos_list1) or all(i is None for i in pos_list1) :
+            return None
+        for pos1, pos2 in itertools.product(pos_list1, pos_list2):            
             for mg1, mg2 in itertools.product(self.motion_goals_for_pos[pos1], self.motion_goals_for_pos[pos2]):
                 if not self.is_valid_motion_start_goal_pair(mg1, mg2):
                     if manhattan_if_fail:
@@ -279,6 +283,7 @@ class MotionPlanner(object):
                         curr_man_dist = manhattan_distance(pos0, pos1)
                         if curr_man_dist < min_manhattan:
                             min_manhattan = curr_man_dist
+                            best_feature = pos2
                     continue
                 curr_dist = self.get_gridworld_distance(mg1, mg2)
                 if curr_dist < min_dist:
@@ -288,11 +293,14 @@ class MotionPlanner(object):
         if manhattan_if_fail and min_dist == np.Inf:
             min_dist = min_manhattan
         min_cost = min_dist + 1
+        if with_argmin:
+            # assert best_feature is not None, "{} vs {}".format(start_pos_and_or, feature_pos_list)
+            return min_cost, best_feature
         return min_cost
 
     def min_cost_to_feature(self, start_pos_and_or, feature_pos_list, with_argmin=False, debug=False):
         """
-        Determines the minimum number of timesteps necessary for a player to go from the starting
+        Determines the minimum number of timesteps necessary for a agent to go from the starting
         position and orientation to any feature in feature_pos_list and perform an interact action
         """
         start_pos = start_pos_and_or[0]
@@ -423,7 +431,7 @@ class JointMotionPlanner(object):
         """Pre-compute all valid plans"""
         all_plans = {}
 
-        # Joint states are valid if players are not in same location
+        # Joint states are valid if agents are not in same location
         if self.start_orientations:
             valid_joint_start_states = self.mdp.get_valid_joint_player_positions_and_orientations()
         else:
@@ -684,7 +692,7 @@ class JointMotionPlanner(object):
     def _joint_graph_from_grid(self):
         """Creates a graph instance from the mdp instance. Each graph node encodes a pair of positions"""
         state_decoder = {}
-        # Valid positions pairs, not including ones with both players in same spot
+        # Valid positions pairs, not including ones with both agents in same spot
         valid_joint_positions = self.mdp.get_valid_joint_player_positions()
         for state_index, joint_pos in enumerate(valid_joint_positions):
             state_decoder[state_index] = joint_pos
@@ -737,13 +745,13 @@ class JointMotionPlanner(object):
 
         end_state = start_state.deepcopy()
         end_players = []
-        for player, end_pos_and_or in zip(end_state.players, end_pos_and_ors):
+        for player, end_pos_and_or in zip(end_state.agents, end_pos_and_ors):
             new_player = player.deepcopy()
             position, orientation = end_pos_and_or
             new_player.update_pos_and_or(position, orientation)
             end_players.append(new_player)
         
-        end_state.players = tuple(end_players)
+        end_state.agents = tuple(end_players)
 
         # Resolve environment effects for t - 1 turns
         plan_length = len(action_plans)
@@ -830,7 +838,7 @@ class MediumLevelActionManager(object):
 
     def joint_ml_actions(self, state):
         """Determine all possible joint medium level actions for a certain state"""
-        agent1_actions, agent2_actions = tuple(self.get_medium_level_actions(state, player) for player in state.players)
+        agent1_actions, agent2_actions = tuple(self.get_medium_level_actions(state, player) for player in state.agents)
         joint_ml_actions = list(itertools.product(agent1_actions, agent2_actions))
         
         # ml actions are nothing but specific joint motion goals
@@ -840,7 +848,7 @@ class MediumLevelActionManager(object):
         # Necessary to prevent states without successors (due to no counters being allowed and no wait actions)
         # causing A* to not find a solution
         if len(valid_joint_ml_actions) == 0:
-            agent1_actions, agent2_actions = tuple(self.get_medium_level_actions(state, player, waiting_substitute=True) for player in state.players)
+            agent1_actions, agent2_actions = tuple(self.get_medium_level_actions(state, player, waiting_substitute=True) for player in state.agents)
             joint_ml_actions = list(itertools.product(agent1_actions, agent2_actions))
             valid_joint_ml_actions = list(filter(lambda a: self.is_valid_ml_action(state, a), joint_ml_actions))
             if len(valid_joint_ml_actions) == 0:
@@ -852,11 +860,11 @@ class MediumLevelActionManager(object):
 
     def get_medium_level_actions(self, state, player, waiting_substitute=False):
         """
-        Determine valid medium level actions for a player.
+        Determine valid medium level actions for a agent.
         
         Args:
             state (OvercookedState): current state
-            player (PlayerState): the player's current state
+            player (PlayerState): the agent's current state
             waiting_substitute (bool): add a substitute action that takes the place of 
                                        a waiting action (going to closest feature)
         
@@ -1098,11 +1106,11 @@ class MediumLevelActionManager(object):
     #     if self.mdp.is_terminal(start_state):
     #         return []
     #
-    #     player = start_state.players[1 - other_agent_idx]
-    #     ml_actions = self.ml_action_manager.get_medium_level_actions(start_state, player)
+    #     agent = start_state.agents[1 - other_agent_idx]
+    #     ml_actions = self.ml_action_manager.get_medium_level_actions(start_state, agent)
     #
     #     if len(ml_actions) == 0:
-    #         ml_actions = self.ml_action_manager.get_medium_level_actions(start_state, player, waiting_substitute=True)
+    #         ml_actions = self.ml_action_manager.get_medium_level_actions(start_state, agent, waiting_substitute=True)
     #
     #     successor_high_level_states = []
     #     for ml_action in ml_actions:
@@ -1239,8 +1247,8 @@ class MediumLevelActionManager(object):
     #
     #     expand_fn = lambda state: self.embedded_mdp_succ_fn(state, other_agent)
     #     # FIXME
-    #     goal_fn = lambda state: state.players[agent_idx].pos_and_or == goal_pos_and_or or state.delivery_rew >= DELIVERY_REW_THRES
-    #     heuristic_fn = lambda state: sum(pos_distance(state.players[agent_idx].position, goal_pos_and_or[0]))
+    #     goal_fn = lambda state: state.agents[agent_idx].pos_and_or == goal_pos_and_or or state.delivery_rew >= DELIVERY_REW_THRES
+    #     heuristic_fn = lambda state: sum(pos_distance(state.agents[agent_idx].position, goal_pos_and_or[0]))
     #
     #     search_problem = SearchTree(state, goal_fn, expand_fn, heuristic_fn)
     #     state_action_plan, cost = search_problem.A_star_graph_search(info=False)
@@ -1274,7 +1282,7 @@ class MediumLevelActionManager(object):
 # class HighLevelActionManager(object):
 #     """
 #     Manager for high level actions. Determines available high level actions
-#     for each state and player.
+#     for each state and agent.
 #     """
 #
 #     def __init__(self, medium_level_planner):
@@ -1289,7 +1297,7 @@ class MediumLevelActionManager(object):
 #         self.mp = medium_level_planner.mp
 #
 #     def joint_hl_actions(self, state):
-#         hl_actions_a0, hl_actions_a1 = tuple(self.get_high_level_actions(state, player) for player in state.players)
+#         hl_actions_a0, hl_actions_a1 = tuple(self.get_high_level_actions(state, agent) for agent in state.agents)
 #         joint_hl_actions = list(itertools.product(hl_actions_a0, hl_actions_a1))
 #
 #         assert self.mlp.params["same_motion_goals"]
@@ -1299,15 +1307,15 @@ class MediumLevelActionManager(object):
 #             print("WARNING: found a state without high level successors")
 #         return valid_joint_hl_actions
 #
-#     def get_high_level_actions(self, state, player):
+#     def get_high_level_actions(self, state, agent):
 #         player_hl_actions = []
 #         counter_pickup_objects = self.mdp.get_counter_objects_dict(state, self.counter_pickup)
-#         if player.has_object():
-#             place_obj_ml_actions = self.ml_action_manager.get_medium_level_actions(state, player)
+#         if agent.has_object():
+#             place_obj_ml_actions = self.ml_action_manager.get_medium_level_actions(state, agent)
 #
 #             # HACK to prevent some states not having successors due to lack of waiting actions
 #             if len(place_obj_ml_actions) == 0:
-#                 place_obj_ml_actions = self.ml_action_manager.get_medium_level_actions(state, player, waiting_substitute=True)
+#                 place_obj_ml_actions = self.ml_action_manager.get_medium_level_actions(state, agent, waiting_substitute=True)
 #
 #             place_obj_hl_actions = [HighLevelAction([ml_action]) for ml_action in place_obj_ml_actions]
 #             player_hl_actions.extend(place_obj_hl_actions)
@@ -1320,7 +1328,7 @@ class MediumLevelActionManager(object):
 #         return player_hl_actions
 #
 #     def get_dish_and_soup_and_serve(self, state, counter_objects, pot_states_dict):
-#         """Get all sequences of medium-level actions (hl actions) that involve a player getting a dish,
+#         """Get all sequences of medium-level actions (hl actions) that involve a agent getting a dish,
 #         going to a pot and picking up a soup, and delivering the soup."""
 #         dish_pickup_actions = self.ml_action_manager.pickup_dish_actions(counter_objects)
 #         pickup_soup_actions = self.ml_action_manager.pickup_soup_with_dish_actions(pot_states_dict)
@@ -1329,7 +1337,7 @@ class MediumLevelActionManager(object):
 #         return [HighLevelAction(hl_action_list) for hl_action_list in hl_level_actions]
 #
 #     def get_onion_and_put_in_pot(self, state, counter_objects, pot_states_dict):
-#         """Get all sequences of medium-level actions (hl actions) that involve a player getting an onion
+#         """Get all sequences of medium-level actions (hl actions) that involve a agent getting an onion
 #         from a dispenser and placing it in a pot."""
 #         onion_pickup_actions = self.ml_action_manager.pickup_onion_actions(counter_objects)
 #         put_in_pot_actions = self.ml_action_manager.put_onion_in_pot_actions(pot_states_dict)
@@ -1337,7 +1345,7 @@ class MediumLevelActionManager(object):
 #         return [HighLevelAction(hl_action_list) for hl_action_list in hl_level_actions]
 #
 #     def get_tomato_and_put_in_pot(self, state, counter_objects, pot_states_dict):
-#         """Get all sequences of medium-level actions (hl actions) that involve a player getting an tomato
+#         """Get all sequences of medium-level actions (hl actions) that involve a agent getting an tomato
 #         from a dispenser and placing it in a pot."""
 #         tomato_pickup_actions = self.ml_action_manager.pickup_tomato_actions(counter_objects)
 #         put_in_pot_actions = self.ml_action_manager.put_tomato_in_pot_actions(pot_states_dict)
@@ -1473,7 +1481,7 @@ class MediumLevelActionManager(object):
 #         - onion to pots we need
 #
 #         We then determine if there are any soups/dishes/onions
-#         in transit (on counters or on players) than can be
+#         in transit (on counters or on agents) than can be
 #         brought to their destinations faster than starting off from
 #         a dispenser of the same type. If so, we consider fulfilling
 #         all demand from these positions.
@@ -1557,11 +1565,11 @@ class MediumLevelActionManager(object):
 #
 #         # Going to closest feature costs
 #         # NOTE: as implemented makes heuristic inconsistent
-#         # for player in state.players:
-#         #     if not player.has_object():
+#         # for agent in state.agents:
+#         #     if not agent.has_object():
 #         #         counter_objects = soups_on_counters + dishes_on_counters + onions_on_counters
 #         #         possible_features = counter_objects + pot_locations + self.mdp.get_dish_dispenser_locations() + self.mdp.get_onion_dispenser_locations()
-#         #         forward_cost += self.action_manager.min_cost_to_feature(player.pos_and_or, possible_features)
+#         #         forward_cost += self.action_manager.min_cost_to_feature(agent.pos_and_or, possible_features)
 #
 #         heuristic_cost = forward_cost / 2
 #
@@ -1603,13 +1611,13 @@ class MediumLevelActionManager(object):
 #         for obj in possible_objects:
 #             obj_pos = obj.position
 #             if obj_pos in state.player_positions:
-#                 # If object is being carried by a player
-#                 player = [p for p in state.players if p.position == obj_pos][0]
+#                 # If object is being carried by a agent
+#                 agent = [p for p in state.agents if p.position == obj_pos][0]
 #                 # NOTE: not sure if this -1 is justified.
 #                 # Made things work better in practice for greedy heuristic based agents.
 #                 # For now this function is just used from there. Consider removing later if
 #                 # greedy heuristic agents end up not being used.
-#                 min_cost = self.motion_planner.min_cost_to_feature(player.pos_and_or, target_locations) - 1
+#                 min_cost = self.motion_planner.min_cost_to_feature(agent.pos_and_or, target_locations) - 1
 #             else:
 #                 # If object is on a counter
 #                 min_cost = self.motion_planner.min_cost_between_features([obj_pos], target_locations)

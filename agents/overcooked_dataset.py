@@ -1,6 +1,6 @@
 from arguments import get_arguments
 from state_encodings import ENCODING_SCHEMES
-from overcooked_ai_py.mdp.overcooked_env import OvercookedEnv
+# from overcooked_ai_py.mdp.overcooked_env import OvercookedEnv
 from overcooked_ai_py.mdp.overcooked_mdp import OvercookedState, OvercookedGridworld, Direction, Action
 from overcooked_ai_py.planning.planners import MediumLevelActionManager, NO_COUNTERS_PARAMS
 
@@ -24,18 +24,25 @@ class Subtasks:
 
 
 class OvercookedDataset(Dataset):
-    def __init__(self, env, encoding_fn, args, add_subtask_info=True, filter_transitions=True):
+    def __init__(self, env, encoding_fn, args,  main_trials=[], is_live=False, add_subtask_info=True):
         self.env = env
         self.add_subtask_info = add_subtask_info
         self.encode_state_fn = encoding_fn
         self.data_path = args.base_dir / args.data_path / args.dataset
-        self.main_trials = pd.read_pickle(self.data_path)
-        self.filter_transitions = filter_transitions
+        self.is_live = is_live
+        if not is_live:
+            self.main_trials = pd.read_pickle(self.data_path)
+        else:
+            self.main_trials = pd.read_pickle(self.data_path)
+            self.main_trials = self.main_trials[self.main_trials['layout_name'] == args.layout]
+            self.grid = self.main_trials.iloc[1]['layout']
+            self.main_trials = main_trials
+        # self.grid = ['XXXXXXXXX', 'O XSXOX S', 'X   P 1 X', 'X2  P   X', 'XXXDXDXXX']
         print(f'Number of all trials: {len(self.main_trials)}')
         self.main_trials = self.main_trials[self.main_trials['layout_name'] == args.layout]
         print(f'Number of {args.layout} trials: {len(self.main_trials)}')
         # print(self.main_trials['layout_name'])
-
+        self.history_dict = []
         self.action_ratios = {k: 0 for k in Action.ALL_ACTIONS}
 
         def str_to_actions(joint_action):
@@ -43,15 +50,16 @@ class OvercookedDataset(Dataset):
             Convert df cell format of a joint action to a joint action as a tuple of indices.
             Used to convert pickle files which are stored as strings into np.arrays
             """
-            try:
-                joint_action = json.loads(joint_action)
-            except json.decoder.JSONDecodeError:
-                # Hacky fix taken from https://github.com/HumanCompatibleAI/human_aware_rl/blob/master/human_aware_rl/human/data_processing_utils.py#L29
-                joint_action = eval(joint_action)
+            if not self.is_live:
+                try:
+                    joint_action = json.loads(joint_action)
+                except json.decoder.JSONDecodeError:
+                    # Hacky fix taken from https://github.com/HumanCompatibleAI/human_aware_rl/blob/master/human_aware_rl/human/data_processing_utils.py#L29
+                    joint_action = eval(joint_action)
             for i in range(2):
                 if type(joint_action[i]) is list:
                     joint_action[i] = tuple(joint_action[i])
-                if type(joint_action[i]) is str:
+                if type(joint_action[i]) is str and not self.is_live:
                     joint_action[i] = joint_action[i].lower()
                 assert joint_action[i] in Action.ALL_ACTIONS
                 self.action_ratios[joint_action[i]] += 1
@@ -73,7 +81,8 @@ class OvercookedDataset(Dataset):
             return df
 
         self.main_trials['joint_action'] = self.main_trials['joint_action'].apply(str_to_actions)
-        self.main_trials = self.main_trials.apply(str_to_obss, axis=1)
+        if not is_live:
+            self.main_trials = self.main_trials.apply(str_to_obss, axis=1)
 
         self.add_subtasks()
 
@@ -117,6 +126,7 @@ class OvercookedDataset(Dataset):
 
         def facing(layout, player):
             '''Returns what object the player is facing'''
+            
             x, y = np.array(player.position) + np.array(player.orientation)
             layout = [[t for t in row.strip("[]'")] for row in layout.split("', '")]
             return layout[y][x]
@@ -131,6 +141,7 @@ class OvercookedDataset(Dataset):
                 # if row['cur_gameloop'] != 0:
                 #     print(row)
                 # assert row['cur_gameloop'] == 0 # Ensure we are starting trial from the first timestep
+                # print(row['trial_id'])
                 curr_trial = row['trial_id']
                 curr_objs = [(p.held_object.name if p.held_object else None) for p in row['state'].players]
                 subtask_start_idx = [index, index]
@@ -141,15 +152,18 @@ class OvercookedDataset(Dataset):
                 try:
                     next_row = self.main_trials.loc[index + 1]
                 except KeyError:
+                    # print("is there key error")
                     subtask = 'unknown'
                     self.main_trials.loc[subtask_start_idx[i]:index, f'p{i + 1}_curr_subtask'] = Subtasks.SUBTASKS_TO_IDS[subtask]
                     self.main_trials.loc[subtask_start_idx[i]-1:index, f'p{i + 1}_next_subtask'] = Subtasks.SUBTASKS_TO_IDS[subtask]
                     continue
-
                 # All subtasks will start and end with an INTERACT action
                 if row['joint_action'][i] == interact_id:
                     next_objs = [(p.held_object.name if p.held_object else None) for p in next_row['state'].players]
-                    tile_in_front = facing(row['layout'], row['state'].players[i])
+                    if not self.is_live:
+                        tile_in_front = facing(row['layout'], row['state'].players[i])
+                    else:
+                        tile_in_front = facing(self.grid, row['state'].players[i])
 
                     # Make sure the next row is part of the current
                     if next_row['trial_id'] != curr_trial:
@@ -236,44 +250,37 @@ class OvercookedDataset(Dataset):
                     subtask_start_idx[i] = index + 1
 
         # print()
-        assert not (self.main_trials['p1_curr_subtask'].isna().any())
-        assert not (self.main_trials['p2_curr_subtask'].isna().any())
-        assert not (self.main_trials['p1_next_subtask'].isna().any())
-        assert not (self.main_trials['p2_next_subtask'].isna().any())
-        
-        if self.filter_transitions:
-            print(len(self.main_trials))
-            remove_list= []
-            for id,samples in tqdm(self.main_trials.iterrows()):
-                if samples['p1_curr_subtask'] == samples['p1_next_subtask'] and samples['p2_curr_subtask'] == samples['p2_next_subtask']:
-                    remove_list.append(id)
-            self.main_trials = self.main_trials.drop(remove_list)
-            # self.main_trials = self.main_trials[ ]
-            print(len(self.main_trials))
+        # assert not (self.main_trials['p1_curr_subtask'].isna().any())
+        # assert not (self.main_trials['p2_curr_subtask'].isna().any())
+        # assert not (self.main_trials['p1_next_subtask'].isna().any())
+        # assert not (self.main_trials['p2_next_subtask'].isna().any())
 
         self.subtask_weights = np.zeros(Subtasks.NUM_SUBTASKS)
         for i in range(2):
             counts = self.main_trials[f'p{i+1}_next_subtask'].value_counts().to_dict()
+            # print('counts',counts)
             print(f'Player {i+1} subtask splits')
+            my_dict= dict.fromkeys(Subtasks.SUBTASKS)
             for k, v in counts.items():
                 self.subtask_weights[k] += v
-                print(f'{Subtasks.IDS_TO_SUBTASKS[k]}: {v}')
-        self.subtask_weights = 1.0 / self.subtask_weights
-        self.subtask_weights = Subtasks.NUM_SUBTASKS * self.subtask_weights / self.subtask_weights.sum()
+                if self.is_live:
+                    my_dict[str(Subtasks.IDS_TO_SUBTASKS[k])] = v
+            my_dict = {k: v or 0 for (k, v) in my_dict.items()}
+            self.history_dict.append(my_dict)
+
+        if not self.is_live:
+            self.subtask_weights = 1.0 / self.subtask_weights
+            self.subtask_weights = Subtasks.NUM_SUBTASKS * self.subtask_weights / self.subtask_weights.sum()
 
 
 
-def main():
-    args = get_arguments()
-    env = OvercookedEnv.from_mdp(OvercookedGridworld.from_layout_name(args.layout), horizon=400)
-    encoding_fn = ENCODING_SCHEMES[args.encoding_fn]
-    OD = OvercookedDataset(env, encoding_fn, args)
-
-    dataloader = DataLoader(OD, batch_size=1, shuffle=True, num_workers=0)
-    for batch in dataloader:
-        print(batch)
-        exit(0)
+# def main():
+#     args = get_arguments()
+#     env = OvercookedEnv.from_mdp(OvercookedGridworld.from_layout_name(args.layout), horizon=400)
+#     encoding_fn = ENCODING_SCHEMES[args.encoding_fn]
+#     OD = OvercookedDataset(env, encoding_fn, args)
 
 
-if __name__ == '__main__':
-    main()
+
+# if __name__ == '__main__':
+#     main()

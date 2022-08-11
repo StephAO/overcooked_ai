@@ -1,3 +1,4 @@
+
 from arguments import get_arguments
 from overcooked_ai_py.mdp.overcooked_env import OvercookedEnv
 from overcooked_ai_py.mdp.overcooked_mdp import OvercookedState, OvercookedGridworld, Direction, Action
@@ -203,7 +204,7 @@ class BC_trainer():
 
                 prev_state, prev_actions = deepcopy(self.env.state), joint_action
                 # Environment step
-                next_state, reward, done, info = self.env.step(joint_action)
+                next_state, reward, done, info, _ = self.env.step(joint_action)
                 # Update metrics
                 trial_reward += reward
                 trial_shaped_r += np.sum(info['shaped_r_by_agent'])
@@ -275,7 +276,7 @@ class BC_trainer():
 
     def training(self, num_epochs=200):
         """ Training routine """
-        wandb.init(project="overcooked_ai_test", entity="stephaneao", dir=str(args.base_dir / 'wandb'))#, mode='disabled')
+        wandb.init(project="overcooked_ai_test", entity="ubiswas", dir=str(args.base_dir / 'wandb'))#, mode='disabled')
         best_loss = float('inf')
         best_reward = 0
         for epoch in range(num_epochs):

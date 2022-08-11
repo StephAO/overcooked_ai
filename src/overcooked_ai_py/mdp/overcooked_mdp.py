@@ -1505,9 +1505,9 @@ class OvercookedGridworld(object):
         free_counters = self.get_empty_counter_locations(state)
         free_counters_valid_for_both = []
         for free_counter in free_counters:
-            goals = mlam.motion_planner.motion_goals_for_pos[free_counter]
-            if any([mlam.motion_planner.is_valid_motion_start_goal_pair(one_player.pos_and_or, goal) for goal in goals]) and \
-            any([mlam.motion_planner.is_valid_motion_start_goal_pair(other_player.pos_and_or, goal) for goal in goals]):
+            goals = mlam.motion_goals_for_pos[free_counter]
+            if any([mlam.is_valid_motion_start_goal_pair(one_player.pos_and_or, goal) for goal in goals]) and \
+            any([mlam.is_valid_motion_start_goal_pair(other_player.pos_and_or, goal) for goal in goals]):
                 free_counters_valid_for_both.append(free_counter)
         return free_counters_valid_for_both
 
