@@ -1262,6 +1262,7 @@ class OvercookedGridworld(object):
         shaped reward is given only for completion of subgoals 
         (not soup deliveries).
         """
+        # TODO Ava/Chihui extend to more players
         events_infos = { event : [False] * self.num_players for event in EVENT_TYPES }
         assert not self.is_terminal(state), "Trying to find successor of a terminal state: {}".format(state)
         for action, action_set in zip(joint_action, self.get_actions(state)):
@@ -2061,6 +2062,7 @@ class OvercookedGridworld(object):
     def lossless_state_encoding(self, overcooked_state, goal_objects=None, horizon=400, p_idx=None, debug=False):
         """Featurizes a OvercookedState object into a stack of boolean masks that are easily readable by a CNN"""
         assert self.num_players == 2, "Functionality has to be added to support encondings for > 2 players"
+        # TODO Ava/Chihui Add support for > 2 players
         assert type(debug) is bool
         base_map_features = ["pot_loc", "counter_loc", "onion_disp_loc", "tomato_disp_loc",
                              "dish_disp_loc", "serve_loc"]

@@ -13,6 +13,7 @@ DEFAULT_ENV_PARAMS = {
 
 MAX_HORIZON = 1e10
 
+
 class OvercookedEnv(object):
     """
     An environment wrapper for the OvercookedGridworld Markov Decision Process.
@@ -25,12 +26,12 @@ class OvercookedEnv(object):
     > env = OvercookedEnv.from_mdp(mdp, horizon=400)
     """
 
-
     #########################
     # INSTANTIATION METHODS #
     #########################
 
-    def __init__(self, mdp_generator_fn, start_state_fn=None, horizon=MAX_HORIZON, mlam_params=NO_COUNTERS_PARAMS, info_level=0, num_mdp=1, initial_info={}):
+    def __init__(self, mdp_generator_fn, start_state_fn=None, horizon=MAX_HORIZON, mlam_params=NO_COUNTERS_PARAMS,
+                 info_level=0, num_mdp=1, initial_info={}):
         """
         mdp_generator_fn (callable):    A no-argument function that returns a OvercookedGridworld instance
         start_state_fn (callable):      Function that returns start state for the MDP, called at each environment reset
@@ -43,9 +44,9 @@ class OvercookedEnv(object):
         TODO: Potentially make changes based on this discussion
         https://github.com/HumanCompatibleAI/overcooked_ai/pull/22#discussion_r416786847
         """
-        assert callable(mdp_generator_fn),  "OvercookedEnv takes in a OvercookedGridworld generator function. " \
-                                            "If trying to instantiate directly from a OvercookedGridworld " \
-                                            "instance, use the OvercookedEnv.from_mdp method"
+        assert callable(mdp_generator_fn), "OvercookedEnv takes in a OvercookedGridworld generator function. " \
+                                           "If trying to instantiate directly from a OvercookedGridworld " \
+                                           "instance, use the OvercookedEnv.from_mdp method"
         self.num_mdp = num_mdp
         self.variable_mdp = num_mdp == 1
         self.mdp_generator_fn = mdp_generator_fn
@@ -66,7 +67,7 @@ class OvercookedEnv(object):
             if self.info_level > 0:
                 print("Computing MediumLevelActionManager")
             self._mlam = MediumLevelActionManager.from_pickle_or_compute(self.mdp, self.mlam_params,
-                                                                  force_compute=False)
+                                                                         force_compute=False)
         return self._mlam
 
     @property
@@ -98,7 +99,6 @@ class OvercookedEnv(object):
             num_mdp=1
         )
 
-
     #####################
     # BASIC CLASS UTILS #
     #####################
@@ -127,7 +127,6 @@ class OvercookedEnv(object):
             num_mdp=self.num_mdp
         )
 
-
     #############################
     # ENV VISUALIZATION METHODS #
     #############################
@@ -151,9 +150,11 @@ class OvercookedEnv(object):
         Terminal graphics visualization of a state transition.
         """
         # TODO: turn this into a "formatting action probs" function and add action symbols too
-        action_probs = [None if "action_probs" not in agent_info.keys() else list(agent_info["action_probs"]) for agent_info in env_info["agent_infos"]]
+        action_probs = [None if "action_probs" not in agent_info.keys() else list(agent_info["action_probs"]) for
+                        agent_info in env_info["agent_infos"]]
 
-        action_probs = [ None if player_action_probs is None else [round(p, 2) for p in player_action_probs[0]] for player_action_probs in action_probs ]
+        action_probs = [None if player_action_probs is None else [round(p, 2) for p in player_action_probs[0]] for
+                        player_action_probs in action_probs]
 
         if display_phi:
             state_potential_str = "\nState potential = " + str(env_info["phi_s_prime"]) + "\t"
@@ -164,14 +165,14 @@ class OvercookedEnv(object):
             potential_diff_str = ""
 
         output_string = "Timestep: {}\nJoint action taken: {} \t Reward: {} + shaping_factor * {}\nAction probs by index: {} {} {}\n{}\n".format(
-                    self.state.timestep,
-                    tuple(Action.ACTION_TO_CHAR[a] for a in a_t),
-                    r_t,
-                    env_info["shaped_r_by_agent"],
-                    action_probs,
-                    state_potential_str,
-                    potential_diff_str,
-                    self)
+            self.state.timestep,
+            tuple(Action.ACTION_TO_CHAR[a] for a in a_t),
+            r_t,
+            env_info["shaped_r_by_agent"],
+            action_probs,
+            state_potential_str,
+            potential_diff_str,
+            self)
 
         if fname is None:
             print(output_string)
@@ -193,6 +194,7 @@ class OvercookedEnv(object):
             ep_shaped_r: the component of the reward that is due to reward shaped (excluding sparse rewards)
             ep_length: length of rollout
         """
+        # TODO Ava/Chihui Extend to four players
         assert not self.is_done()
         if joint_agent_action_info is None: joint_agent_action_info = [{}, {}]
         next_state, mdp_infos = self.mdp.get_state_transition(self.state, joint_action, display_phi, self.mp)
@@ -204,7 +206,7 @@ class OvercookedEnv(object):
         self.state = next_state
         done = self.is_done()
         env_info = self._prepare_info_dict(joint_agent_action_info, mdp_infos)
-        
+
         if done: self._add_episode_info(env_info)
 
         timestep_sparse_reward = sum(mdp_infos["sparse_reward_by_agent"])
@@ -243,7 +245,7 @@ class OvercookedEnv(object):
         else:
             self.state = self.start_state_fn(**start_state_kwargs)
 
-        events_dict = { k : [ [] for _ in range(self.mdp.num_players) ] for k in EVENT_TYPES }
+        events_dict = {k: [[] for _ in range(self.mdp.num_players)] for k in EVENT_TYPES}
         rewards_dict = {
             "cumulative_sparse_rewards_by_agent": np.zeros(self.mdp.num_players),
             "cumulative_shaped_rewards_by_agent": np.zeros(self.mdp.num_players)
@@ -264,7 +266,7 @@ class OvercookedEnv(object):
             gamma (float): discount rate
         """
         state = state if state else self.state
-        return self.mdp.potential_function(state, mp=mlam.motion_planner ,gamma=gamma)
+        return self.mdp.potential_function(state, mp=mlam.motion_planner, gamma=gamma)
 
     def _prepare_info_dict(self, joint_agent_action_info, mdp_infos):
         """
@@ -307,7 +309,6 @@ class OvercookedEnv(object):
                 if event_by_agent:
                     self.game_stats[event_type][idx].append(self.state.timestep)
 
-
     ####################
     # TRAJECTORY LOGIC #
     ####################
@@ -327,7 +328,8 @@ class OvercookedEnv(object):
         self.reset(False)
         return successor_state, done
 
-    def run_agents(self, agent_pair, include_final_state=False, display=False, dir=None, display_phi=False, display_until=np.Inf):
+    def run_agents(self, agent_pair, include_final_state=False, display=False, dir=None, display_phi=False,
+                   display_until=np.Inf):
         """
         Trajectory returned will a list of state-action pairs (s_t, joint_a_t, r_t, done_t, info_t).
         """
@@ -381,7 +383,7 @@ class OvercookedEnv(object):
 
         NOTE: this is the standard trajectories format used throughout the codebase
         """
-        trajectories = { k:[] for k in DEFAULT_TRAJ_KEYS }
+        trajectories = {k: [] for k in DEFAULT_TRAJ_KEYS}
         metadata_fn = (lambda x: {}) if metadata_fn is None else metadata_fn
         metadata_info_fn = (lambda x: "") if metadata_info_fn is None else metadata_info_fn
         range_iterator = tqdm.trange(num_games, desc="", leave=True) if info else range(num_games)
@@ -391,7 +393,8 @@ class OvercookedEnv(object):
             rollout_info = self.run_agents(agent_pair, display=display, dir=dir, include_final_state=final_state,
                                            display_phi=display_phi, display_until=display_until)
             trajectory, time_taken, tot_rews_sparse, _tot_rews_shaped = rollout_info
-            obs, actions, rews, dones, infos = trajectory.T[0], trajectory.T[1], trajectory.T[2], trajectory.T[3], trajectory.T[4]
+            obs, actions, rews, dones, infos = trajectory.T[0], trajectory.T[1], trajectory.T[2], trajectory.T[3], \
+            trajectory.T[4]
             trajectories["ep_states"].append(obs)
             trajectories["ep_actions"].append(actions)
             trajectories["ep_rewards"].append(rews)
@@ -428,7 +431,6 @@ class OvercookedEnv(object):
         AgentEvaluator.check_trajectories(trajectories, verbose=info)
         return trajectories
 
-
     ####################
     # TRAJECTORY UTILS #
     ####################
@@ -442,7 +444,7 @@ class OvercookedEnv(object):
     @staticmethod
     def _get_discounted_rewards_with_horizon(rewards_matrix, gamma, horizon):
         rewards_matrix = np.array(rewards_matrix)
-        discount_array = [gamma**i for i in range(horizon)]
+        discount_array = [gamma ** i for i in range(horizon)]
         rewards_matrix = rewards_matrix[:, :horizon]
         discounted_rews = np.sum(rewards_matrix * discount_array, axis=1)
         return discounted_rews
@@ -488,7 +490,7 @@ class OvercookedEnv(object):
             obs = trajectories["ep_states"][traj_idx]
             for traj_timestep in range(stuck_time, trajectories["ep_lengths"][traj_idx]):
                 if traj_timestep >= stuck_time:
-                    recent_states = obs[traj_timestep - stuck_time : traj_timestep + 1]
+                    recent_states = obs[traj_timestep - stuck_time: traj_timestep + 1]
                     recent_player_pos_and_or = [s.players[agent_idx].pos_and_or for s in recent_states]
 
                     if len({item for item in recent_player_pos_and_or}) == 1:
@@ -551,7 +553,6 @@ class Overcooked(gym.Env):
         low = np.zeros(obs_shape)
         return gym.spaces.Box(low, high, dtype=np.float32)
 
-
     def step(self, action):
         """
         action: 
@@ -561,7 +562,7 @@ class Overcooked(gym.Env):
         returns:
             observation: formatted to be standard input for self.agent_idx's policy
         """
-        assert all(self.action_space.contains(a) for a in action), "%r (%s) invalid"%(action, type(action))
+        assert all(self.action_space.contains(a) for a in action), "%r (%s) invalid" % (action, type(action))
         agent_action, other_agent_action = [Action.INDEX_TO_ACTION[a] for a in action]
 
         if self.agent_idx == 0:
@@ -575,15 +576,15 @@ class Overcooked(gym.Env):
             both_agents_ob = (ob_p0, ob_p1)
         else:
             both_agents_ob = (ob_p1, ob_p0)
-        
+
         env_info["policy_agent_idx"] = self.agent_idx
 
         if "episode" in env_info.keys():
             env_info["episode"]["policy_agent_idx"] = self.agent_idx
 
         obs = {"both_agent_obs": both_agents_ob,
-                "overcooked_state": next_state,
-                "other_agent_env_idx": 1 - self.agent_idx}
+               "overcooked_state": next_state,
+               "other_agent_env_idx": 1 - self.agent_idx}
         return obs, reward, done, env_info
 
     def reset(self):
@@ -604,8 +605,8 @@ class Overcooked(gym.Env):
             both_agents_ob = (ob_p0, ob_p1)
         else:
             both_agents_ob = (ob_p1, ob_p0)
-        return {"both_agent_obs": both_agents_ob, 
-                "overcooked_state": self.base_env.state, 
+        return {"both_agent_obs": both_agents_ob,
+                "overcooked_state": self.base_env.state,
                 "other_agent_env_idx": 1 - self.agent_idx}
 
     def render(self, mode="human", close=False):
