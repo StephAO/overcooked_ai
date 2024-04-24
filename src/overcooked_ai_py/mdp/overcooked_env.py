@@ -196,7 +196,7 @@ class OvercookedEnv(object):
         """
         # TODO Ava/Chihui Extend to four players
         assert not self.is_done()
-        if joint_agent_action_info is None: joint_agent_action_info = [{}, {}]
+        if joint_agent_action_info is None: joint_agent_action_info = [{} for _ in range(self.mdp.num_players)]
         next_state, mdp_infos = self.mdp.get_state_transition(self.state, joint_action, display_phi, self.mp)
 
         # Update game_stats 
@@ -206,6 +206,7 @@ class OvercookedEnv(object):
         self.state = next_state
         done = self.is_done()
         env_info = self._prepare_info_dict(joint_agent_action_info, mdp_infos)
+
 
         if done: self._add_episode_info(env_info)
 

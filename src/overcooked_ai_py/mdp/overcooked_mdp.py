@@ -1461,9 +1461,11 @@ class OvercookedGridworld(object):
 
     def compute_new_positions_and_orientations(self, old_player_states, joint_action):
         """Compute new positions and orientations ignoring collisions"""
-        new_positions, new_orientations = list(zip(*[
-            self._move_if_direction(p.position, p.orientation, a) \
+        new_positions, new_orientations = \
+        list(zip(*[self._move_if_direction(p.position, p.orientation, a) \
             for p, a in zip(old_player_states, joint_action)]))
+        
+
         old_positions = tuple(p.position for p in old_player_states)
         new_positions = self._handle_collisions(old_positions, new_positions)
         return new_positions, new_orientations
@@ -1473,8 +1475,9 @@ class OvercookedGridworld(object):
         if self.is_joint_position_collision(new_positions):
             self.prev_step_was_collision = True
             return True
-        # Check if any two players crossed paths
+
         for idx0, idx1 in itertools.combinations(range(self.num_players), 2):
+
             p1_old, p2_old = old_positions[idx0], old_positions[idx1]
             p1_new, p2_new = new_positions[idx0], new_positions[idx1]
             if p1_new == p2_old and p1_old == p2_new:
@@ -2061,7 +2064,7 @@ class OvercookedGridworld(object):
 
     def lossless_state_encoding(self, overcooked_state, goal_objects=None, horizon=400, p_idx=None, debug=False):
         """Featurizes a OvercookedState object into a stack of boolean masks that are easily readable by a CNN"""
-        assert self.num_players == 2, "Functionality has to be added to support encondings for > 2 players"
+
         # TODO Ava/Chihui Add support for > 2 players
         assert type(debug) is bool
         base_map_features = ["pot_loc", "counter_loc", "onion_disp_loc", "tomato_disp_loc",
@@ -2185,7 +2188,6 @@ class OvercookedGridworld(object):
             if debug:
                 print("terrain----")
                 print(np.array(self.terrain_mtx))
-                print("-----------")
                 print(len(LAYERS))
                 print(len(state_mask_dict))
                 for k, v in state_mask_dict.items():

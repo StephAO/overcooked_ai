@@ -365,8 +365,8 @@ class JointMotionPlanner(object):
         # Graph problem that returns optimal paths from 
         # starting positions to goal positions (without
         # accounting for orientations)
-        self.joint_graph_problem = self._joint_graph_from_grid()
-        self.all_plans = self._populate_all_plans()
+        # self.joint_graph_problem = self._joint_graph_from_grid()
+        # self.all_plans = self._populate_all_plans()
 
     def get_low_level_action_plan(self, start_jm_state, goal_jm_state):
         """
@@ -718,7 +718,6 @@ class JointMotionPlanner(object):
         NOTE: this DOES NOT include joint positions with superimposed agents."""
         successor_joint_positions = {}
         joint_motion_actions = itertools.product(Action.MOTION_ACTIONS, Action.MOTION_ACTIONS)
-        
         # Under assumption that orientation doesn't matter
         dummy_orientation = Direction.NORTH
         dummy_player_states = [PlayerState(pos, dummy_orientation) for pos in starting_positions]
@@ -773,12 +772,11 @@ class MediumLevelActionManager(object):
 
     def __init__(self, mdp, mlam_params):
         self.mdp = mdp
-        
         self.params = mlam_params
         self.wait_allowed = mlam_params['wait_allowed']
         self.counter_drop = mlam_params["counter_drop"]
         self.counter_pickup = mlam_params["counter_pickup"]
-        
+
         self.joint_motion_planner = JointMotionPlanner(mdp, mlam_params)
         self.motion_planner = self.joint_motion_planner.motion_planner
 

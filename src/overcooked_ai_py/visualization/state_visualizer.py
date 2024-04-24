@@ -25,7 +25,7 @@ class StateVisualizer:
         "width": None, # if None use (hud_height+grid_height)
         "tile_size": 75,
         "window_fps": 30,
-        "player_colors": ['blue', 'green'],
+        "player_colors": ['blue', 'green', "orange"], 
         "is_rendering_hud": True,
         "hud_font_size": 20,
         "hud_font_path": roboto_path, 
